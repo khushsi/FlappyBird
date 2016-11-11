@@ -7,11 +7,11 @@ import math
 import os
 import pickle
 from random import randint
-
+import random
 import pygame
 from pygame.locals import *
 
-from rL import gameState
+from rLT import gameState
 from Cython.Plex.DFA import StateMap
 
 
@@ -19,6 +19,7 @@ FPS = 60
 ANIMATION_SPEED = 0.18  # pixels per millisecond
 WIN_WIDTH = 284 * 2     # BG image size: 284x512 px; tiled twice
 WIN_HEIGHT = 512
+COUNTERp = 1
 
 
 class Bird(pygame.sprite.Sprite):
@@ -160,7 +161,7 @@ class PipePair(pygame.sprite.Sprite):
     WIDTH = 80
     PIECE_HEIGHT = 32
     ADD_INTERVAL = 3000
-
+    random.seed(0)
     def __init__(self, pipe_end_img, pipe_body_img):
         """Initialises a new random PipePair.
 
@@ -306,14 +307,17 @@ def msec_to_frames(milliseconds, fps=FPS):
     """
     return fps * milliseconds / 1000.0
 
-ACTION_FREQUENCY = 15
+ACTION_FREQUENCY = 10
 cgame = gameState()
 cvisitMap = cgame.visitedMap
 cstatMap = cgame.statespacemap
 crewardMap = cgame.rewardMap
 freward = -100000
 sreward =  100000
-gridv=4
+gridv=8
+import Queue
+
+
 def main():
     """The application's entry point.
 
@@ -328,7 +332,10 @@ def main():
 
     fullgamedone = False
     
-    while not fullgamedone:       
+    while not fullgamedone:
+        global COUNTERp
+        COUNTERp = COUNTERp + 1
+        qupdate = Queue.LifoQueue()       
         clock = pygame.time.Clock()
         score_font = pygame.font.SysFont(None, 32, bold=True)  # default font
         images = load_images()
@@ -348,13 +355,14 @@ def main():
         oldY = 0
         oldmove = 0
         currmove = 0
+        
         while not done:
             
             clock.tick(FPS)
     
             # Action to be taken if the frameclock is in the valid Frame
             is_action_state = frame_clock % ACTION_FREQUENCY == 0
-
+            
             # Handle this 'manually'.  If we used pygame.time.set_timer(),
             # pipe addition would be messed up when paused.
             if not (paused or frame_clock % msec_to_frames(PipePair.ADD_INTERVAL)):
@@ -386,7 +394,7 @@ def main():
                 #colloision update reward
                 if(oldstate != None):                    
                     cgame.updateReward(oldX, oldY, currX, currY, oldmove,freward)
-                    cgame.updateQ(oldX, oldY, oldmove, currX, currY)
+                    cgame.updateQS(oldX, oldY, oldmove, currX, currY,qupdate)
                 done = True
     
             for x in (0, WIN_WIDTH / 2):
@@ -410,7 +418,7 @@ def main():
                     #success update reward
                     if(oldstate != None):                        
                         cgame.updateReward(oldX, oldY, currX, currY, oldmove,sreward)
-                        cgame.updateQ(oldX, oldY, oldmove, currX, currY)
+                        cgame.updateQS(oldX, oldY, oldmove, currX, currY,qupdate)
                         
             if is_action_state :                    
                 nextMove = cgame.getNextAction(currX, currY)
@@ -418,6 +426,7 @@ def main():
                 if nextMove == 1 :
                     bird.msec_to_climb = Bird.CLIMB_DURATION                        
                                 
+                qupdate.put((oldX,oldY,oldmove,currX,currY))
                 stateX = currX
                 stateY = currY
                 oldstate = currState
@@ -431,9 +440,9 @@ def main():
     
             pygame.display.flip()
             frame_clock += 1
-        pickle.dump(cvisitMap, open( "visitedMap.pickle", "wb" ) )
-        pickle.dump(cstatMap, open( "stateMap.pickle", "wb" ) )
-        pickle.dump( crewardMap, open( "rewardMap.pickle", "wb" ) )    
+        pickle.dump(cvisitMap, open( "visitedMapT.pickle", "wb" ) )
+        pickle.dump(cstatMap, open( "stateMapT.pickle", "wb" ) )
+        pickle.dump( crewardMap, open( "rewardMapT.pickle", "wb" ) )    
         print('Game over! Score: %i' % score)
     pygame.quit()
 
